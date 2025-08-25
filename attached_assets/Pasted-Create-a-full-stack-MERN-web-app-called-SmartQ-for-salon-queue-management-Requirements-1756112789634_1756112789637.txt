@@ -1,0 +1,57 @@
+Create a full-stack MERN web app called **SmartQ** for salon queue management.  
+
+### Requirements:  
+1. **Frontend (React + TailwindCSS)**  
+   - Theme: Elegant beauty/salon style (soft pink, white, pastel accents).  
+   - Pages:  
+     - Home: List nearby salons (card with name, image, services, offers).  
+     - Salon Profile: Show salon details + "Join Queue" button.  
+     - User Profile: Show past visits + loyalty points.  
+     - Login/Signup: Google/Phone auth.  
+   - Salon Dashboard (separate login for owners):  
+     - Queue Management (see current queue, button = "Call Next Customer").  
+     - Add/Edit Salon Profile (images, services, pricing, offers).  
+     - Analytics Page (total customers, avg wait time, offer clicks).  
+
+2. **Backend (Node.js + Express + MongoDB Atlas)**  
+   - Collections:  
+     - Users (id, name, phone, points, history).  
+     - Salons (id, name, location, services, offers, images, socials).  
+     - Queues (salonId, userId, status: waiting/complete/no-show, timestamp).  
+     - Offers (salonId, title, discount, validity).  
+   - APIs:  
+     - POST /auth/signup, POST /auth/login  
+     - GET /salons (list all salons)  
+     - GET /salons/:id (single salon details)  
+     - POST /queue/join (user joins queue)  
+     - POST /queue/next (owner calls next customer)  
+     - GET /queue/:salonId (view current queue)  
+     - POST /offers (create/update offers)  
+
+3. **Authentication**  
+   - Use JWT or Firebase Auth (Google/Phone login).  
+
+4. **Notifications (WhatsApp Cloud API)**  
+   - When salon owner clicks "Call Next Customer,"  
+     → send a WhatsApp message to that user:  
+     `"Hi [Name], it's your turn at [Salon Name]. Please come in!"`  
+
+5. **Loyalty Points System**  
+   - Each completed visit = +10 points to user.  
+   - Points shown in User Profile.  
+
+6. **UI Requirements**  
+   - Mobile-first responsive design.  
+   - Clean, minimal cards for salons.  
+   - Dashboard styled with Tailwind + simple charts for analytics.  
+
+7. **Hosting**  
+   - Frontend → Vercel  
+   - Backend → Render/Heroku  
+   - DB → MongoDB Atlas Free Tier  
+
+Deliver working code with:  
+- React frontend (good UI).  
+- Node.js backend with Express routes.  
+- MongoDB schema for Users, Salons, Queues, Offers.  
+- Integration with WhatsApp Cloud API for free notifications.  
