@@ -1,0 +1,163 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(0 0% 100%);
+  --foreground: hsl(210 25% 7.8431%);
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(210 25% 7.8431%);
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(210 25% 7.8431%);
+  --primary: hsl(340 82% 52%);
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(210 25% 7.8431%);
+  --secondary-foreground: hsl(0 0% 100%);
+  --muted: hsl(350 10% 92%);
+  --muted-foreground: hsl(210 25% 7.8431%);
+  --accent: hsl(349 50% 95%);
+  --accent-foreground: hsl(340 82% 52%);
+  --destructive: hsl(356.3033 90.5579% 54.3137%);
+  --destructive-foreground: hsl(0 0% 100%);
+  --border: hsl(349 30% 90%);
+  --input: hsl(348 50% 97%);
+  --ring: hsl(340 82% 52%);
+  --chart-1: hsl(340 82% 52%);
+  --chart-2: hsl(159.7826 100% 36.0784%);
+  --chart-3: hsl(42.0290 92.8251% 56.2745%);
+  --chart-4: hsl(147.1429 78.5047% 41.9608%);
+  --chart-5: hsl(341.4894 75.2000% 50.9804%);
+  --sidebar: hsl(0 0% 100%);
+  --sidebar-foreground: hsl(210 25% 7.8431%);
+  --sidebar-primary: hsl(340 82% 52%);
+  --sidebar-primary-foreground: hsl(0 0% 100%);
+  --sidebar-accent: hsl(349 50% 95%);
+  --sidebar-accent-foreground: hsl(340 82% 52%);
+  --sidebar-border: hsl(349 30% 90%);
+  --sidebar-ring: hsl(340 82% 52%);
+  --font-sans: Inter, sans-serif;
+  --font-serif: Playfair Display, serif;
+  --font-mono: Menlo, monospace;
+  --radius: 1.3rem;
+  --shadow-2xs: 0px 2px 0px 0px hsl(340 82% 52% / 0.00);
+  --shadow-xs: 0px 2px 0px 0px hsl(340 82% 52% / 0.00);
+  --shadow-sm: 0px 2px 0px 0px hsl(340 82% 52% / 0.00), 0px 1px 2px -1px hsl(340 82% 52% / 0.00);
+  --shadow: 0px 2px 0px 0px hsl(340 82% 52% / 0.00), 0px 1px 2px -1px hsl(340 82% 52% / 0.00);
+  --shadow-md: 0px 2px 0px 0px hsl(340 82% 52% / 0.00), 0px 2px 4px -1px hsl(340 82% 52% / 0.00);
+  --shadow-lg: 0px 2px 0px 0px hsl(340 82% 52% / 0.00), 0px 4px 6px -1px hsl(340 82% 52% / 0.00);
+  --shadow-xl: 0px 2px 0px 0px hsl(340 82% 52% / 0.00), 0px 8px 10px -1px hsl(340 82% 52% / 0.00);
+  --shadow-2xl: 0px 2px 0px 0px hsl(340 82% 52% / 0.00);
+  --tracking-normal: 0em;
+  --spacing: 0.25rem;
+  
+  /* Custom beauty/salon colors */
+  --rose-50: hsl(355 100% 97%);
+  --rose-100: hsl(355 85% 92%);
+  --rose-200: hsl(353 96% 82%);
+  --rose-300: hsl(353 95% 70%);
+  --rose-400: hsl(351 94% 57%);
+  --rose-500: hsl(349 89% 50%);
+  --rose-600: hsl(347 77% 50%);
+  --rose-700: hsl(345 82% 41%);
+  --rose-800: hsl(343 79% 35%);
+  --rose-900: hsl(342 75% 30%);
+  
+  --blush-50: hsl(332 100% 98%);
+  --blush-100: hsl(333 100% 95%);
+  --blush-200: hsl(334 87% 89%);
+  --blush-300: hsl(336 84% 79%);
+  --blush-400: hsl(339 82% 67%);
+  --blush-500: hsl(340 82% 52%);
+  --blush-600: hsl(341 79% 44%);
+  --blush-700: hsl(342 75% 37%);
+  --blush-800: hsl(343 71% 32%);
+  --blush-900: hsl(343 69% 27%);
+}
+
+.dark {
+  --background: hsl(0 0% 0%);
+  --foreground: hsl(200 6.6667% 91.1765%);
+  --card: hsl(228 9.8039% 10%);
+  --card-foreground: hsl(0 0% 85.0980%);
+  --popover: hsl(0 0% 0%);
+  --popover-foreground: hsl(200 6.6667% 91.1765%);
+  --primary: hsl(340 82% 52%);
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(195.0000 15.3846% 94.9020%);
+  --secondary-foreground: hsl(210 25% 7.8431%);
+  --muted: hsl(0 0% 9.4118%);
+  --muted-foreground: hsl(210 3.3898% 46.2745%);
+  --accent: hsl(205.7143 70% 7.8431%);
+  --accent-foreground: hsl(340 82% 52%);
+  --destructive: hsl(356.3033 90.5579% 54.3137%);
+  --destructive-foreground: hsl(0 0% 100%);
+  --border: hsl(210 5.2632% 14.9020%);
+  --input: hsl(207.6923 27.6596% 18.4314%);
+  --ring: hsl(340 82% 52%);
+  --chart-1: hsl(340 82% 52%);
+  --chart-2: hsl(159.7826 100% 36.0784%);
+  --chart-3: hsl(42.0290 92.8251% 56.2745%);
+  --chart-4: hsl(147.1429 78.5047% 41.9608%);
+  --chart-5: hsl(341.4894 75.2000% 50.9804%);
+  --sidebar: hsl(228 9.8039% 10%);
+  --sidebar-foreground: hsl(0 0% 85.0980%);
+  --sidebar-primary: hsl(340 82% 52%);
+  --sidebar-primary-foreground: hsl(0 0% 100%);
+  --sidebar-accent: hsl(205.7143 70% 7.8431%);
+  --sidebar-accent-foreground: hsl(340 82% 52%);
+  --sidebar-border: hsl(205.7143 15.7895% 26.0784%);
+  --sidebar-ring: hsl(340 82% 52%);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+/* Custom animations for salon theme */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes bounceSoft {
+  0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-10px); }
+  60% { transform: translateY(-5px); }
+}
+
+.glass-effect {
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.gradient-bg {
+  background: linear-gradient(135deg, var(--blush-500) 0%, var(--blush-600) 50%, var(--blush-700) 100%);
+}
+
+.soft-shadow {
+  box-shadow: 0 10px 25px rgba(248, 187, 217, 0.15);
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+.animate-bounce-soft {
+  animation: bounceSoft 0.6s ease-in-out;
+}
