@@ -135,8 +135,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get user details for each queue entry
       const queueWithUsers = await Promise.all(
         queue.map(async (entry) => {
-          const user = await storage.getUser(entry.userId);
-          const service = entry.serviceId ? await storage.getServicesBySalon(entry.salonId) : null;
+          const user = entry.userId ? await storage.getUser(entry.userId) : null;
+          const service = entry.serviceId && entry.salonId ? await storage.getServicesBySalon(entry.salonId) : null;
           const serviceName = service?.find(s => s.id === entry.serviceId)?.name || "General Service";
           
           return {
@@ -163,7 +163,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       // Check if user is already in queue for this salon
-      const existingPosition = await storage.getQueuePosition(userId, queueData.salonId);
+      const existingPosition = queueData.salonId ? await storage.getQueuePosition(userId, queueData.salonId) : null;
       if (existingPosition) {
         return res.status(400).json({ message: "You are already in the queue for this salon" });
       }
@@ -184,8 +184,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Mock WhatsApp notification (UI display instead of actual SMS)
-      const user = await storage.getUser(queue.userId);
-      const salon = await storage.getSalon(queue.salonId);
+      const user = queue.userId ? await storage.getUser(queue.userId) : null;
+      const salon = queue.salonId ? await storage.getSalon(queue.salonId) : null;
       const mockNotification = {
         message: `Hi ${user?.firstName || 'Customer'}, it's your turn at ${salon?.name || 'the salon'}. Please come in!`,
         phone: user?.phone,
@@ -207,7 +207,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Create visit record and award loyalty points
-      if (queue.serviceId) {
+      if (queue.serviceId && queue.salonId) {
         const service = await storage.getServicesBySalon(queue.salonId);
         const serviceDetail = service.find(s => s.id === queue.serviceId);
         
@@ -264,8 +264,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get salon and service details for each visit
       const visitsWithDetails = await Promise.all(
         visits.map(async (visit) => {
-          const salon = await storage.getSalon(visit.salonId);
-          const services = await storage.getServicesBySalon(visit.salonId);
+          const salon = visit.salonId ? await storage.getSalon(visit.salonId) : null;
+          const services = visit.salonId ? await storage.getServicesBySalon(visit.salonId) : [];
           const service = services.find(s => s.id === visit.serviceId);
           
           return {

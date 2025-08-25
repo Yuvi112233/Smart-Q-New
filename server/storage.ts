@@ -230,7 +230,13 @@ export class MemStorage implements IStorage {
   async createSalon(salonData: InsertSalon): Promise<Salon> {
     const salon: Salon = {
       id: randomUUID(),
-      ...salonData,
+      ownerId: salonData.ownerId || null,
+      name: salonData.name,
+      description: salonData.description || null,
+      location: salonData.location,
+      phone: salonData.phone || null,
+      imageUrl: salonData.imageUrl || null,
+      operatingHours: salonData.operatingHours || "9 AM - 7 PM",
       rating: 0,
       reviewCount: 0,
       createdAt: new Date(),
@@ -257,7 +263,11 @@ export class MemStorage implements IStorage {
   async createService(serviceData: InsertService): Promise<Service> {
     const service: Service = {
       id: randomUUID(),
-      ...serviceData,
+      salonId: serviceData.salonId || null,
+      name: serviceData.name,
+      description: serviceData.description || null,
+      price: serviceData.price,
+      duration: serviceData.duration,
       createdAt: new Date(),
     };
     this.services.set(service.id, service);
@@ -278,7 +288,10 @@ export class MemStorage implements IStorage {
     
     const queue: Queue = {
       id: randomUUID(),
-      ...queueData,
+      salonId: queueData.salonId || null,
+      userId: queueData.userId || null,
+      serviceId: queueData.serviceId || null,
+      status: queueData.status || "waiting",
       position: waitingCount + 1,
       joinedAt: new Date(),
       calledAt: null,
@@ -322,7 +335,12 @@ export class MemStorage implements IStorage {
   async createOffer(offerData: InsertOffer): Promise<Offer> {
     const offer: Offer = {
       id: randomUUID(),
-      ...offerData,
+      salonId: offerData.salonId || null,
+      title: offerData.title,
+      description: offerData.description || null,
+      discount: offerData.discount || null,
+      validUntil: offerData.validUntil || null,
+      isActive: offerData.isActive !== undefined ? offerData.isActive : true,
       clickCount: 0,
       createdAt: new Date(),
     };
@@ -342,19 +360,25 @@ export class MemStorage implements IStorage {
   async getVisitsByUser(userId: string): Promise<Visit[]> {
     return Array.from(this.visits.values())
       .filter(visit => visit.userId === userId)
-      .sort((a, b) => new Date(b.visitDate).getTime() - new Date(a.visitDate).getTime());
+      .sort((a, b) => new Date(b.visitDate || 0).getTime() - new Date(a.visitDate || 0).getTime());
   }
 
   async createVisit(visitData: InsertVisit): Promise<Visit> {
     const visit: Visit = {
       id: randomUUID(),
-      ...visitData,
+      userId: visitData.userId || null,
+      salonId: visitData.salonId || null,
+      serviceId: visitData.serviceId || null,
+      queueId: visitData.queueId || null,
+      totalAmount: visitData.totalAmount || null,
+      pointsEarned: visitData.pointsEarned || 10,
+      rating: visitData.rating || null,
       visitDate: new Date(),
     };
     this.visits.set(visit.id, visit);
     
     // Award loyalty points to user
-    const user = await this.getUser(visitData.userId);
+    const user = visitData.userId ? await this.getUser(visitData.userId) : null;
     if (user) {
       await this.upsertUser({
         ...user,
