@@ -19,10 +19,7 @@ services:
     staticPublishPath: dist
     envVars:
       - key: VITE_API_BASE_URL
-        fromService:
-          type: web
-          name: smartqueue-api
-          property: url
+        sync: false
     headers:
       - path: /*
         name: Cache-Control
