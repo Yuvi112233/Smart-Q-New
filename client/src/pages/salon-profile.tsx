@@ -75,7 +75,7 @@ export default function SalonProfile() {
       
       try {
         // Direct fetch implementation
-        const response = await fetch("/api/queue/join", {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/queue/join`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

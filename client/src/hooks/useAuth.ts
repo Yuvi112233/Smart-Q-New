@@ -28,7 +28,7 @@ export function useAuth() {
     mutationFn: async (credentials: LoginCredentials) => {
       // For development, simulate a successful login
       // In production, this would make an API call
-      const response = await fetch("/api/auth/login", {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -50,7 +50,7 @@ export function useAuth() {
 
   const registerMutation = useMutation({
     mutationFn: async (credentials: RegisterCredentials) => {
-      const response = await fetch("/api/auth/register", {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -70,7 +70,7 @@ export function useAuth() {
     mutationFn: async () => {
       // For development, simulate logout
       // In production, this would make an API call
-      await fetch("/api/auth/logout", { method: "POST" });
+      await fetch(`${import.meta.env.VITE_API_URL}/api/auth/logout`, { method: "POST" });
     },
     onSuccess: () => {
       // Clear user data after logout
