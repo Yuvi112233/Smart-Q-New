@@ -1,6 +1,7 @@
 services:
   - type: web
     name: smartqueue-api
+    plan: free
     rootDir: server
     env: node
     buildCommand: npm install
@@ -11,6 +12,7 @@ services:
 
   - type: web
     name: smartqueue-web
+    plan: free
     rootDir: client
     env: static
     buildCommand: |
