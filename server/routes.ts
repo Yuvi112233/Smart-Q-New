@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { isAuthenticated } from "./auth";
+import { isAuthenticated, setAuthCookie, clearAuthCookie, optionalAuth } from "./auth";
 import { 
   insertSalonSchema, 
   insertServiceSchema, 
@@ -36,11 +36,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // For development, accept any password
       // In production, validate password hash
       
-      // Set session
-      if (req.session) {
-        req.session.userId = user.id;
-        req.session.isAdmin = user.isAdmin;
-      }
+      // Set auth cookie (JWT)
+      setAuthCookie(res, user.id, !!user.isAdmin);
       
       console.log('Login successful for user:', user.id);
       
@@ -112,15 +109,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/auth/logout', async (req, res) => {
     try {
-      // Clear session
-      if (req.session) {
-        req.session.destroy((err) => {
-          if (err) {
-            console.error("Error destroying session:", err);
-          }
-        });
-      }
-      
+      clearAuthCookie(res);
       res.json({ message: "Logged out successfully" });
     } catch (error) {
       console.error("Error during logout:", error);
@@ -128,32 +117,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  const authGuard = (_: any, __: any, next: any) => next();
+  const authGuard = optionalAuth;
 
   // Auth routes
   app.get('/api/auth/user', authGuard, async (req: any, res) => {
     try {
-      // Local/dev behavior: if no session, synthesize a dev user so the app works without logging in.
-      const localDev = !process.env.REPLIT_DOMAINS;
-      let userId = req.session?.userId as string | undefined;
-
-      if (!userId) {
-        // Fallback to id from auth middleware or default dev id
-        userId = req.user?.claims?.sub || 'dev-user';
-      }
-
+      const userId = req.user?.claims?.sub;
+      if (!userId) return res.status(401).json({ message: "Not authenticated" });
       let user = await storage.getUser(userId);
       if (!user) {
-        // Create a lightweight dev user if missing
-        user = await storage.upsertUser({
-          id: userId,
-          email: null,
-          firstName: localDev ? 'Dev' : 'User',
-          lastName: localDev ? 'User' : '',
-          profileImageUrl: null,
-          phone: null,
-          loyaltyPoints: 0,
-        });
+        return res.status(401).json({ message: "User not found" });
       }
 
       return res.json(user);

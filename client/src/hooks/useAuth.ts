@@ -17,6 +17,10 @@ interface RegisterCredentials {
 
 export function useAuth() {
   const queryClient = useQueryClient();
+  const parseJson = async (res: Response) => {
+    const text = await res.text();
+    return text ? JSON.parse(text) : null;
+  };
   
   const { data: user, isLoading } = useQuery({
     queryKey: ["/api/auth/user"],
@@ -28,19 +32,20 @@ export function useAuth() {
     mutationFn: async (credentials: LoginCredentials) => {
       // For development, simulate a successful login
       // In production, this would make an API call
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/login`, {
+      const response = await fetch(`${(import.meta as any).env.VITE_API_URL}/api/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(credentials),
+        credentials: "include",
       });
 
       if (!response.ok) {
         throw new Error("Login failed");
       }
 
-      return response.json();
+      return parseJson(response);
     },
     onSuccess: (data) => {
       // Set user data after successful login
@@ -50,19 +55,20 @@ export function useAuth() {
 
   const registerMutation = useMutation({
     mutationFn: async (credentials: RegisterCredentials) => {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/register`, {
+      const response = await fetch(`${(import.meta as any).env.VITE_API_URL}/api/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(credentials),
+        credentials: "include",
       });
 
       if (!response.ok) {
         throw new Error("Registration failed");
       }
 
-      return response.json();
+      return parseJson(response);
     },
   });
 
@@ -70,7 +76,7 @@ export function useAuth() {
     mutationFn: async () => {
       // For development, simulate logout
       // In production, this would make an API call
-      await fetch(`${import.meta.env.VITE_API_URL}/api/auth/logout`, { method: "POST" });
+      await fetch(`${(import.meta as any).env.VITE_API_URL}/api/auth/logout`, { method: "POST", credentials: "include" });
     },
     onSuccess: () => {
       // Clear user data after logout
