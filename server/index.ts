@@ -1,8 +1,37 @@
+import 'dotenv/config';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load .env from parent directory (root of project)
+import dotenv from 'dotenv';
+dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
 import express, { type Request, Response, NextFunction } from "express";
+import { connectToDatabase } from './db';
 import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
+import cors from 'cors';
+
+export function log(message: string, source = "express") {
+  const formattedTime = new Date().toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+
+  console.log(`${formattedTime} [${source}] ${message}`);
+}
 
 const app = express();
+
+// Enable CORS for frontend
+app.use(cors({
+  origin: process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : process.env.FRONTEND_URL,
+  credentials: true
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -37,6 +66,12 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Connect to MongoDB before setting up routes
+  if (!process.env.MONGODB_URI) {
+    throw new Error("MONGODB_URI is not set in environment");
+  }
+  await connectToDatabase(process.env.MONGODB_URI);
+
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -47,25 +82,12 @@ app.use((req, res, next) => {
     throw err;
   });
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
-    await setupVite(app, server);
-  } else {
-    serveStatic(app);
-  }
-
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
+  // API server only - no frontend serving
   const port = parseInt(process.env.PORT || '5000', 10);
   server.listen({
     port,
     host: "0.0.0.0",
-    reusePort: true,
   }, () => {
-    log(`serving on port ${port}`);
+    log(`API server running on port ${port}`);
   });
 })();

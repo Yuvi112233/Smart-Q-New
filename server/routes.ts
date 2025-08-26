@@ -1,30 +1,169 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+import { isAuthenticated } from "./auth";
 import { 
   insertSalonSchema, 
   insertServiceSchema, 
   insertQueueSchema, 
   insertOfferSchema,
   insertVisitSchema 
-} from "@shared/schema";
+} from "./schemas";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Auth middleware
-  await setupAuth(app);
+  // Auth routes
+  app.post('/api/auth/login', async (req, res) => {
+    try {
+      const { email, password, isAdmin } = req.body;
+      
+      console.log('Login attempt:', { email, isAdmin });
+      
+      // Find user by email
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        console.log('User not found:', email);
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+      
+      console.log('User found:', { id: user.id, email: user.email, isAdmin: user.isAdmin });
+      
+      // Check if user type matches (admin vs regular user)
+      if (isAdmin && !user.isAdmin) {
+        console.log('Admin access denied for user:', user.id);
+        return res.status(401).json({ message: "Admin access required" });
+      }
+      
+      // For development, accept any password
+      // In production, validate password hash
+      
+      // Set session
+      if (req.session) {
+        req.session.userId = user.id;
+        req.session.isAdmin = user.isAdmin;
+      }
+      
+      console.log('Login successful for user:', user.id);
+      
+      res.json({
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        profileImageUrl: user.profileImageUrl,
+        phone: user.phone,
+        loyaltyPoints: user.loyaltyPoints,
+        isAdmin: user.isAdmin,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      });
+    } catch (error) {
+      console.error("Error during login:", error);
+      res.status(500).json({ message: "Login failed" });
+    }
+  });
+
+  app.post('/api/auth/register', async (req, res) => {
+    try {
+      const { email, password, firstName, lastName, phone, isAdmin } = req.body;
+      
+      console.log('Registration attempt:', { email, firstName, lastName, isAdmin });
+      
+      // Check if user already exists
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser) {
+        console.log('User already exists:', email);
+        return res.status(400).json({ message: "User with this email already exists" });
+      }
+      
+      // Create new user
+      const userData = {
+        email,
+        firstName,
+        lastName,
+        phone,
+        profileImageUrl: null,
+        loyaltyPoints: 0,
+        isAdmin: isAdmin || false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      
+      console.log('Creating user with data:', userData);
+      
+      const user = await storage.upsertUser(userData);
+      
+      console.log('User created successfully:', { id: user.id, isAdmin: user.isAdmin });
+      
+      res.status(201).json({ 
+        message: "User registered successfully",
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          isAdmin: user.isAdmin
+        }
+      });
+    } catch (error) {
+      console.error("Error during registration:", error);
+      res.status(500).json({ message: "Registration failed" });
+    }
+  });
+
+  app.post('/api/auth/logout', async (req, res) => {
+    try {
+      // Clear session
+      if (req.session) {
+        req.session.destroy((err) => {
+          if (err) {
+            console.error("Error destroying session:", err);
+          }
+        });
+      }
+      
+      res.json({ message: "Logged out successfully" });
+    } catch (error) {
+      console.error("Error during logout:", error);
+      res.status(500).json({ message: "Logout failed" });
+    }
+  });
+
+  const authGuard = (_: any, __: any, next: any) => next();
 
   // Auth routes
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+  app.get('/api/auth/user', authGuard, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      res.json(user);
+      // Local/dev behavior: if no session, synthesize a dev user so the app works without logging in.
+      const localDev = !process.env.REPLIT_DOMAINS;
+      let userId = req.session?.userId as string | undefined;
+
+      if (!userId) {
+        // Fallback to id from auth middleware or default dev id
+        userId = req.user?.claims?.sub || 'dev-user';
+      }
+
+      let user = await storage.getUser(userId);
+      if (!user) {
+        // Create a lightweight dev user if missing
+        user = await storage.upsertUser({
+          id: userId,
+          email: null,
+          firstName: localDev ? 'Dev' : 'User',
+          lastName: localDev ? 'User' : '',
+          profileImageUrl: null,
+          phone: null,
+          loyaltyPoints: 0,
+        });
+      }
+
+      return res.json(user);
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
     }
   });
+
+
 
   // Salon routes
   app.get('/api/salons', async (req, res) => {
@@ -43,6 +182,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ...salon,
             services: services.slice(0, 3).map(s => s.name), // First 3 services
             currentOffer: offers[0]?.title || null,
+            currentOfferDiscount: offers[0]?.discount || null,
             queueCount: waitingCount,
           };
         })
@@ -63,7 +203,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const services = await storage.getServicesBySalon(salon.id);
-      const offers = await storage.getOffersBySalon(salon.id);
+      const offersAll = await storage.getOffersBySalon(salon.id);
+      const offers = offersAll.filter(o => o.isActive);
       const queue = await storage.getQueueBySalon(salon.id);
       const waitingCount = queue.filter(q => q.status === "waiting").length;
       
@@ -157,9 +298,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/queue/join', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      
+      // Get the first service for this salon if serviceId is default
+      let serviceId = req.body.serviceId;
+      if (serviceId === 'default-service-id' && req.body.salonId) {
+        const services = await storage.getServicesBySalon(req.body.salonId);
+        if (services && services.length > 0) {
+          serviceId = services[0].id;
+          console.log("Using first available service:", serviceId);
+        }
+      }
+      
       const queueData = insertQueueSchema.parse({
         ...req.body,
         userId,
+        serviceId,
       });
       
       // Check if user is already in queue for this salon
@@ -313,15 +466,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/salons/:salonId/offers', isAuthenticated, async (req: any, res) => {
     try {
+      const { salonId } = req.params;
+      console.log('Creating offer for salon:', salonId);
+      console.log('Request body:', req.body);
+      
+      // Ensure salonId is set correctly
       const offerData = insertOfferSchema.parse({
         ...req.body,
-        salonId: req.params.salonId,
+        salonId: salonId
       });
+      
+      console.log('Parsed offer data:', offerData);
       const offer = await storage.createOffer(offerData);
+      console.log('Created offer:', offer);
+      
       res.status(201).json(offer);
     } catch (error) {
       console.error("Error creating offer:", error);
-      res.status(400).json({ message: "Failed to create offer" });
+      res.status(400).json({ message: "Failed to create offer", details: error.message });
+    }
+  });
+
+  app.patch('/api/salons/:salonId/offers/:offerId', isAuthenticated, async (req: any, res) => {
+    try {
+      const { offerId } = req.params;
+      const updates = req.body;
+      const updatedOffer = await storage.updateOffer(offerId, updates);
+      if (!updatedOffer) {
+        return res.status(404).json({ message: "Offer not found" });
+      }
+      res.json(updatedOffer);
+    } catch (error) {
+      console.error("Error updating offer:", error);
+      res.status(400).json({ message: "Failed to update offer" });
+    }
+  });
+
+  app.delete('/api/salons/:salonId/offers/:offerId', isAuthenticated, async (req: any, res) => {
+    try {
+      const { offerId } = req.params;
+      console.log(`Received delete request for offer: ${offerId}`);
+      await storage.deleteOffer(offerId);
+      console.log(`Successfully deleted offer: ${offerId}`);
+      res.json({ message: "Offer deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting offer:", error);
+      res.status(400).json({ message: "Failed to delete offer", details: error.message });
     }
   });
 

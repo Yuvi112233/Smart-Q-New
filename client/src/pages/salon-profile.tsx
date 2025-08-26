@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useParams } from "wouter";
+import { useParams, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
@@ -45,32 +45,79 @@ export default function SalonProfile() {
   const { user, isLoading: authLoading } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data: salon, isLoading } = useQuery<SalonDetails>({
+  const { data: salon, isLoading, refetch } = useQuery<SalonDetails>({
     queryKey: ["/api/salons", id],
     retry: false,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
+    staleTime: 0, // Consider data stale immediately
+    onSuccess: (data) => {
+      console.log("Salon data fetched successfully:", data);
+      if (data?.offers) {
+        console.log("Offers found:", data.offers.length);
+      }
+    }
   });
+  
+  // Offers now come from salon payload; no separate fetch needed
 
   const { data: queueStatus } = useQuery({
-    queryKey: ["/api/user/queue-status", { salonId: id }],
+    queryKey: [`/api/user/queue-status?salonId=${id}`],
     retry: false,
-    enabled: !!user,
+    enabled: !!user && !!id,
   });
 
+  const [, setLocation] = useLocation();
+  
   const joinQueueMutation = useMutation({
     mutationFn: async (serviceId: string) => {
-      await apiRequest("POST", "/api/queue/join", {
-        salonId: id,
-        serviceId,
-        status: "waiting",
-      });
+      console.log("Joining queue with:", { salonId: id, serviceId: serviceId || "default-service-id" });
+      
+      try {
+        // Direct fetch implementation
+        const response = await fetch("/api/queue/join", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            salonId: id,
+            serviceId: serviceId || "default-service-id",
+            status: "waiting"
+          }),
+          credentials: "include"
+        });
+        
+        console.log("Join queue response status:", response.status);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("Join queue error:", errorText);
+          throw new Error(errorText || "Failed to join queue");
+        }
+        
+        const data = await response.json();
+        console.log("Join queue success:", data);
+        return data;
+      } catch (error) {
+        console.error("Join queue exception:", error);
+        throw error;
+      }
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log("Join queue mutation success:", data);
+      
+      // Show success toast
       toast({
         title: "Success!",
-        description: "You've been added to the queue. You'll be notified when it's your turn.",
+        description: "You have been added to queue. Redirecting to waiting area...",
+        variant: "default",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/user/queue-status"] });
+      
+      // Refresh queue status and salon data
+      queryClient.invalidateQueries({ queryKey: [`/api/user/queue-status?salonId=${id}`] });
       queryClient.invalidateQueries({ queryKey: ["/api/salons", id] });
+      
+      // Navigate to waiting area without full reload
+      setLocation(`/waiting-area/${id}`);
     },
     onError: (error) => {
       if (isUnauthorizedError(error)) {
@@ -80,7 +127,7 @@ export default function SalonProfile() {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          window.location.href = "/login";
         }, 500);
         return;
       }
@@ -100,17 +147,19 @@ export default function SalonProfile() {
         variant: "destructive",
       });
       setTimeout(() => {
-        window.location.href = "/api/login";
+        window.location.href = "/login";
       }, 500);
       return;
     }
   }, [user, authLoading, toast]);
 
   const handleJoinQueue = () => {
-    if (salon?.services && salon.services.length > 0) {
-      // For simplicity, use the first service. In a real app, you'd let user choose
-      joinQueueMutation.mutate(salon.services[0].id);
-    }
+    console.log("Join Queue button clicked");
+    console.log("Salon data:", salon);
+    
+    // Always use a default service ID since the server only returns service names, not IDs
+    console.log("Using default service ID for queue");
+    joinQueueMutation.mutate("default-service-id");
   };
 
   const formatPrice = (cents: number) => {
@@ -251,30 +300,51 @@ export default function SalonProfile() {
       </section>
 
       {/* Current Offers */}
-      {salon.offers.length > 0 && (
-        <section className="px-4 pb-6">
-          <h3 className="text-xl font-bold text-gray-800 mb-4">Current Offers</h3>
-          
-          {salon.offers.map((offer) => (
-            <Card key={offer.id} className="bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 mb-4">
-              <CardContent className="p-4">
-                <div className="flex items-center space-x-3">
-                  <div className="bg-green-100 rounded-full p-2">
-                    <i className="fas fa-percentage text-green-600"></i>
+      <section className="px-4 pb-6">
+        <h3 className="text-xl font-bold text-gray-800 mb-4">Current Offers</h3>
+        
+        {salon?.offers?.length > 0 ? (
+          <div className="space-y-4">
+            {salon?.offers?.map((offer) => (
+              <Card key={offer.id} className="bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-200 mb-4 transform transition-all hover:scale-[1.02]">
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="bg-amber-100 rounded-full p-3 flex-shrink-0">
+                      <i className="fas fa-percentage text-amber-600 text-lg"></i>
+                    </div>
+                    <div className="flex-grow">
+                      <h4 className="font-semibold text-amber-800 text-lg">
+                        {offer.title} 
+                      </h4>
+                      {offer.discount ? (
+                        <div className="mt-1 inline-block bg-amber-600 text-white font-bold px-3 py-1 rounded-full text-sm">
+                          {offer.discount}% OFF
+                        </div>
+                      ) : null}
+                      {offer.description && (
+                        <p className="text-sm text-amber-700 mt-2">{offer.description}</p>
+                      )}
+                      {offer.validUntil && (
+                        <p className="text-xs text-amber-600 mt-2 flex items-center">
+                          <i className="fas fa-clock mr-1"></i>
+                          Valid until {new Date(offer.validUntil).toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="font-semibold text-gray-800">{offer.title}</h4>
-                    <p className="text-sm text-gray-600">{offer.description}</p>
-                    <p className="text-xs text-gray-500">
-                      Valid until {new Date(offer.validUntil).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </section>
-      )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card className="border-gray-200 text-center p-6">
+            <div className="text-gray-400 mb-3">
+              <i className="fas fa-percentage text-3xl"></i>
+            </div>
+            <p className="text-gray-600">No current offers available</p>
+          </Card>
+        )}
+      </section>
 
       {/* About Section */}
       <section className="px-4 pb-20">
@@ -308,7 +378,10 @@ export default function SalonProfile() {
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-blush-100">
         <Button 
           className="w-full bg-gradient-to-r from-blush-500 to-pink-500 text-white font-semibold py-4 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
-          onClick={handleJoinQueue}
+          onClick={() => {
+            console.log("Join Queue button clicked directly");
+            handleJoinQueue();
+          }}
           disabled={joinQueueMutation.isPending || !!queueStatus}
           data-testid="button-join-queue"
         >
@@ -320,7 +393,7 @@ export default function SalonProfile() {
           ) : queueStatus ? (
             <>
               <i className="fas fa-check-circle mr-2"></i>
-              In Queue (Position #{queueStatus.position})
+              In Queue (Position #{queueStatus?.position || '?'})
             </>
           ) : (
             <>

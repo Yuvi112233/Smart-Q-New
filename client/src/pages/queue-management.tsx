@@ -60,7 +60,7 @@ export default function QueueManagement() {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          window.location.href = "/login";
         }, 500);
         return;
       }
@@ -91,7 +91,7 @@ export default function QueueManagement() {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          window.location.href = "/login";
         }, 500);
         return;
       }
@@ -122,7 +122,7 @@ export default function QueueManagement() {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          window.location.href = "/login";
         }, 500);
         return;
       }
@@ -153,7 +153,7 @@ export default function QueueManagement() {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          window.location.href = "/login";
         }, 500);
         return;
       }
@@ -173,7 +173,7 @@ export default function QueueManagement() {
         variant: "destructive",
       });
       setTimeout(() => {
-        window.location.href = "/api/login";
+        window.location.href = "/login";
       }, 500);
       return;
     }
@@ -197,7 +197,7 @@ export default function QueueManagement() {
       hour12: true
     });
   };
-
+  
   const handleCallNextCustomer = () => {
     if (nextCustomer) {
       callCustomerMutation.mutate(nextCustomer.id);

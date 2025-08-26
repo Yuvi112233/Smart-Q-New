@@ -10,6 +10,7 @@ interface Salon {
   reviewCount: number;
   services: string[];
   currentOffer: string | null;
+  currentOfferDiscount?: number;
   queueCount: number;
 }
 
@@ -100,6 +101,11 @@ export default function SalonCard({ salon, className = "" }: SalonCardProps) {
           {salon.currentOffer && (
             <span className="text-sm font-medium text-blush-600" data-testid="text-offer">
               {salon.currentOffer}
+              {salon.currentOfferDiscount && (
+                <span className="ml-1 bg-green-100 text-green-700 px-1.5 py-0.5 rounded-md text-xs font-bold">
+                  {salon.currentOfferDiscount}% off
+                </span>
+              )}
             </span>
           )}
         </div>
