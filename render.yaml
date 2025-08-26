@@ -1,0 +1,42 @@
+services:
+  - type: web
+    name: smartqueue-api
+    rootDir: server
+    env: node
+    plan: free
+    buildCommand: |
+      npm ci
+      npm run build
+    startCommand: npm start
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
+      - key: FRONTEND_URL
+        fromService:
+          type: static
+          name: smartqueue-web
+          property: url
+
+  - type: static
+    name: smartqueue-web
+    rootDir: client
+    buildCommand: |
+      npm ci
+      npm run build
+    publishPath: dist
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=3600
+    routes:
+      - type: rewrite
+        source: /(.*)
+        destination: /index.html
+      - type: redirect
+        source: /api/(.*)
+        destination: https://smartqueue-api.onrender.com/api/$1
+        status: 307
+
