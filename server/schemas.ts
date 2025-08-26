@@ -6,8 +6,12 @@ export const insertSalonSchema = z.object({
   description: z.string().nullable().optional(),
   location: z.string().min(1),
   phone: z.string().nullable().optional(),
+  email: z.string().email().nullable().optional(),
+  website: z.string().url().nullable().optional(),
   imageUrl: z.string().url().nullable().optional(),
   operatingHours: z.string().nullable().optional(),
+  rating: z.number().min(0).max(5).nullable().optional(),
+  reviewCount: z.number().int().nonnegative().nullable().optional(),
 });
 
 export const insertServiceSchema = z.object({
