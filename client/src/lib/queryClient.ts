@@ -1,6 +1,8 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
-const API_BASE = (import.meta as any)?.env?.VITE_API_URL?.replace(/\/$/, "") || "";
+// Use the environment variable if available, otherwise fallback to the deployed API URL
+const API_BASE = (import.meta as any)?.env?.VITE_API_URL?.replace(/\/$/, "") || 
+                "https://smartqueue-api.onrender.com";
 
 export function resolveApiUrl(pathOrUrl: string): string {
   if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
