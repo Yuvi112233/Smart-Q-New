@@ -3,22 +3,11 @@ services:
     name: smartqueue-api
     rootDir: server
     env: node
-    plan: free
-    buildCommand: |
-      npm ci
-      npm run build
+    buildCommand: npm install
     startCommand: npm start
-    autoDeploy: true
     envVars:
-      - key: NODE_ENV
-        value: production
       - key: MONGODB_URI
         sync: false
-      - key: FRONTEND_URL
-        fromService:
-          type: web
-          name: smartqueue-web
-          property: url
 
   - type: web
     name: smartqueue-web
@@ -27,18 +16,21 @@ services:
     buildCommand: |
       npm ci
       npm run build
-    publishPath: dist
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        fromService:
+          type: web
+          name: smartqueue-api
+          property: url
     headers:
       - path: /*
         name: Cache-Control
         value: public, max-age=3600
     routes:
-      # Send SPA paths to index.html
       - type: rewrite
         source: /(.*)
         destination: /index.html
-      # Forward API calls to the API service (keeps your frontend code using /api/*)
       - type: redirect
         source: /api/(.*)
         destination: https://smartqueue-api.onrender.com/api/$1
-        status: 307
