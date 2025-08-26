@@ -1,7 +1,6 @@
 services:
   - type: web
     name: smartqueue-api
-    plan: free
     rootDir: server
     env: node
     buildCommand: npm install
@@ -10,11 +9,9 @@ services:
       - key: MONGODB_URI
         sync: false
 
-  - type: web
+  - type: static_site
     name: smartqueue-web
-    plan: free
     rootDir: client
-    env: static
     buildCommand: |
       npm ci
       npm run build
