@@ -16,13 +16,14 @@ services:
         sync: false
       - key: FRONTEND_URL
         fromService:
-          type: static
+          type: web
           name: smartqueue-web
           property: url
 
-  - type: static
+  - type: web
     name: smartqueue-web
     rootDir: client
+    env: static
     buildCommand: |
       npm ci
       npm run build
@@ -32,11 +33,12 @@ services:
         name: Cache-Control
         value: public, max-age=3600
     routes:
+      # Send SPA paths to index.html
       - type: rewrite
         source: /(.*)
         destination: /index.html
+      # Forward API calls to the API service (keeps your frontend code using /api/*)
       - type: redirect
         source: /api/(.*)
         destination: https://smartqueue-api.onrender.com/api/$1
         status: 307
-
