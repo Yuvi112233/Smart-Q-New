@@ -26,7 +26,7 @@ export async function apiRequest(
     method,
     headers: data ? { "Content-Type": "application/json" } : {},
     body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
+    credentials: "include", // Ensures the sq_auth cookie is sent
   });
 
   await throwIfResNotOk(res);

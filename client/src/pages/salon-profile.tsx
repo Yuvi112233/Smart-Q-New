@@ -39,102 +39,102 @@ interface SalonDetails {
   queueCount: number;
 }
 
+interface QueueResponse {
+  id: string; // Queue ID
+  position: number;
+  status: string;
+}
+
 export default function SalonProfile() {
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading, refresh } = useAuth();
   const queryClient = useQueryClient();
 
   const { data: salon, isLoading, refetch } = useQuery<SalonDetails>({
     queryKey: ["/api/salons", id],
     retry: false,
-    refetchInterval: 3000, // Refetch even more frequently
-    staleTime: 0, // Consider data stale immediately
-    onSuccess: (data) => {
-      console.log("Salon data fetched successfully:", data);
-      if (data?.offers) {
-        console.log("Offers found:", data.offers.length);
-      }
-    }
+    refetchInterval: 3000,
+    staleTime: 0,
+    onSuccess: (data) => console.log("Salon data fetched:", data),
+    onError: (error) => console.error("Error fetching salon data:", error),
   });
 
   const { data: queueStatus } = useQuery({
     queryKey: ["/api/user/queue-status", { salonId: id }],
     retry: false,
     enabled: !!user,
+    onSuccess: (data) => console.log("Queue status fetched:", data),
+    onError: (error) => console.error("Error fetching queue status:", error),
   });
 
   const joinQueueMutation = useMutation({
-    mutationFn: async (serviceId: string) => {
-      await apiRequest("POST", "/api/queue/join", {
-        salonId: id,
-        serviceId,
-        status: "waiting",
-      });
+    mutationFn: async () => {
+      console.log("Joining queue - salonId:", id, "user:", user?.id);
+      if (!id || !user?.id) throw new Error("Missing id or user");
+      try {
+        // Add timestamp to prevent caching issues
+        const response = await apiRequest("POST", `/api/queue/join?t=${Date.now()}`, {
+          salonId: id,
+          serviceId: null, // Server will handle default service
+          status: "waiting",
+        });
+        const data = await response.json();
+        console.log("Join queue response:", data);
+        return data as QueueResponse;
+      } catch (error) {
+        console.error("API request failed:", error);
+        throw error;
+      }
     },
-    onSuccess: () => {
-      toast({
-        title: "Success!",
-        description: "You've been added to the queue. You'll be notified when it's your turn.",
-      });
+    onSuccess: (data: QueueResponse) => {
+      console.log("Join queue success:", data);
+      toast({ title: "Success!", description: "Joined queue. Redirecting..." });
+      // Save salon ID for redirect after login if needed
+      localStorage.setItem("redirectAfterLogin", `/salon/${id}`);
+      setTimeout(() => window.location.href = `/waiting-area/${data.id}`, 500);
       queryClient.invalidateQueries({ queryKey: ["/api/user/queue-status"] });
       queryClient.invalidateQueries({ queryKey: ["/api/salons", id] });
     },
-    onError: (error) => {
+    onError: async (error: any) => {
+      console.error("Join queue error:", error);
       if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
+        toast({ title: "Please log in", description: "You need to be logged in to join the queue", variant: "destructive" });
+        // Save current salon for redirect after login
+        localStorage.setItem("redirectAfterLogin", `/salon/${id}`);
+        if (refresh) {
+          await refresh();
+          joinQueueMutation.mutate(); // Retry after refresh
+          return;
+        }
+        setTimeout(() => window.location.href = "/login", 500);
         return;
       }
-      toast({
-        title: "Error",
-        description: error.message || "Failed to join queue",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: error.message || "Failed to join queue. Check console.", variant: "destructive" });
     },
   });
 
   useEffect(() => {
     if (!authLoading && !user) {
-      toast({
-        title: "Unauthorized",
-        description: "You are logged out. Logging in again...",
-        variant: "destructive",
-      });
-      setTimeout(() => {
-        window.location.href = "/api/login";
-      }, 500);
-      return;
+      toast({ title: "Unauthorized", description: "Please log in again.", variant: "destructive" });
+      setTimeout(() => window.location.href = "/login", 500);
     }
   }, [user, authLoading, toast]);
 
   const handleJoinQueue = () => {
-    if (salon?.services && salon.services.length > 0) {
-      // For simplicity, use the first service. In a real app, you'd let user choose
-      joinQueueMutation.mutate(salon.services[0].id);
-    }
+    console.log("Handle Join Queue clicked - salonId:", id, "user:", user);
+    joinQueueMutation.mutate();
   };
 
-  const formatPrice = (cents: number) => {
-    return `$${(cents / 100).toFixed(2)}`;
-  };
-
-  const formatRating = (rating: number) => {
-    return (rating / 10).toFixed(1);
-  };
+  const formatPrice = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+  const formatRating = (rating: number) => (rating / 10).toFixed(1);
 
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-rose-50 via-white to-blush-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blush-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading salon details...</p>
+          <p className="text-gray-600">Loading...</p>
         </div>
       </div>
     );
@@ -157,41 +157,27 @@ export default function SalonProfile() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-rose-50 via-white to-blush-50">
-      {/* Navigation */}
       <nav className="bg-white border-b border-blush-100 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <button 
-              className="text-gray-600 hover:text-blush-500 transition-colors"
-              onClick={() => window.history.back()}
-              data-testid="button-back"
-            >
+            <button className="text-gray-600 hover:text-blush-500" onClick={() => window.history.back()} data-testid="button-back">
               <i className="fas fa-arrow-left text-lg"></i>
             </button>
             <h1 className="font-serif text-lg font-semibold text-gray-800">Salon Profile</h1>
-            <button className="text-gray-600 hover:text-blush-500 transition-colors">
+            <button className="text-gray-600 hover:text-blush-500">
               <i className="fas fa-share-alt text-lg"></i>
             </button>
           </div>
         </div>
       </nav>
 
-      {/* Salon Hero */}
       <section className="relative">
-        <img 
-          src={salon.imageUrl} 
-          alt={`${salon.name} interior`}
-          className="w-full h-64 object-cover"
-        />
-        
+        <img src={salon.imageUrl} alt={`${salon.name} interior`} className="w-full h-64 object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
-        
         <div className="absolute bottom-4 left-4 right-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="font-serif text-2xl font-bold text-white mb-1" data-testid="text-salon-name">
-                {salon.name}
-              </h2>
+              <h2 className="font-serif text-2xl font-bold text-white mb-1" data-testid="text-salon-name">{salon.name}</h2>
               <div className="flex items-center space-x-4 text-white/90">
                 <div className="flex items-center space-x-1">
                   <i className="fas fa-star text-yellow-400"></i>
@@ -208,22 +194,16 @@ export default function SalonProfile() {
         </div>
       </section>
 
-      {/* Queue Status Card */}
       {queueStatus && (
         <section className="px-4 py-6">
           <div className="bg-gradient-to-r from-blush-500 to-pink-500 rounded-2xl p-6 text-white mb-6">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-semibold mb-1">Current Queue Status</h3>
+                <h3 className="text-lg font-semibold mb-1">Queue Status</h3>
                 <p className="text-white/90">
-                  {queueStatus.position - 1 > 0 
-                    ? `${queueStatus.position - 1} people ahead of you`
-                    : "You're next!"
-                  }
+                  {queueStatus.position - 1 > 0 ? `${queueStatus.position - 1} ahead` : "You're next!"}
                 </p>
-                <p className="text-sm text-white/75">
-                  Estimated wait: {(queueStatus.position - 1) * 15}-{(queueStatus.position - 1) * 20} mins
-                </p>
+                <p className="text-sm text-white/75">Wait: {(queueStatus.position - 1) * 15}-{(queueStatus.position - 1) * 20} mins</p>
               </div>
               <div className="text-right">
                 <div className="text-3xl font-bold">#{queueStatus.position}</div>
@@ -234,10 +214,8 @@ export default function SalonProfile() {
         </section>
       )}
 
-      {/* Services & Pricing */}
       <section className="px-4 pb-6">
         <h3 className="text-xl font-bold text-gray-800 mb-4">Services & Pricing</h3>
-        
         <div className="space-y-3">
           {salon.services.map((service) => (
             <Card key={service.id} className="border-gray-100" data-testid={`card-service-${service.id}`}>
@@ -258,11 +236,9 @@ export default function SalonProfile() {
         </div>
       </section>
 
-      {/* Current Offers */}
       {salon.offers.length > 0 && (
         <section className="px-4 pb-6">
           <h3 className="text-xl font-bold text-gray-800 mb-4">Current Offers</h3>
-          
           {salon.offers.map((offer) => (
             <Card key={offer.id} className="bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 mb-4">
               <CardContent className="p-4">
@@ -273,9 +249,7 @@ export default function SalonProfile() {
                   <div>
                     <h4 className="font-semibold text-gray-800">{offer.title}</h4>
                     <p className="text-sm text-gray-600">{offer.description}</p>
-                    <p className="text-xs text-gray-500">
-                      Valid until {new Date(offer.validUntil).toLocaleDateString()}
-                    </p>
+                    <p className="text-xs text-gray-500">Valid until {new Date(offer.validUntil).toLocaleDateString()}</p>
                   </div>
                 </div>
               </CardContent>
@@ -284,16 +258,13 @@ export default function SalonProfile() {
         </section>
       )}
 
-      {/* About Section */}
       <section className="px-4 pb-20">
         <h3 className="text-xl font-bold text-gray-800 mb-4">About</h3>
-        
         <Card className="border-gray-100 mb-4">
           <CardContent className="p-4">
             <p className="text-gray-600 leading-relaxed">{salon.description}</p>
           </CardContent>
         </Card>
-
         <div className="grid grid-cols-2 gap-4 mb-6">
           <Card className="border-gray-100 text-center">
             <CardContent className="p-4">
@@ -312,7 +283,6 @@ export default function SalonProfile() {
         </div>
       </section>
 
-      {/* Join Queue Button */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-blush-100">
         <Button 
           className="w-full bg-gradient-to-r from-blush-500 to-pink-500 text-white font-semibold py-4 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
@@ -323,12 +293,12 @@ export default function SalonProfile() {
           {joinQueueMutation.isPending ? (
             <>
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-              Joining Queue...
+              Joining...
             </>
           ) : queueStatus ? (
             <>
               <i className="fas fa-check-circle mr-2"></i>
-              In Queue (Position #{queueStatus.position})
+              In Queue (#{queueStatus.position})
             </>
           ) : (
             <>

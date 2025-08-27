@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { useEffect, useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter"; // Added useLocation for potential future use
 
 interface Salon {
   id: string;
@@ -31,16 +31,25 @@ export default function SalonDashboard() {
   const [showNextSteps, setShowNextSteps] = useState(false);
   const [createdSalon, setCreatedSalon] = useState<any>(null);
   const [salonData, setSalonData] = useState({
-    name: '',
-    description: '',
-    location: '',
-    phone: '',
-    email: '',
-    website: ''
+    name: "",
+    description: "",
+    location: "",
+    phone: "",
+    email: "",
+    website: "",
   });
 
+  // Use environment variable or fallback to local API
+  const apiUrl = process.env.NODE_ENV === "development" ? "http://localhost:5002" : "https://smartqueue-api.onrender.com";
   const { data: salons, isLoading: salonsLoading } = useQuery<Salon[]>({
     queryKey: ["/api/my-salons"],
+    queryFn: async () => {
+      const response = await fetch(`${apiUrl}/api/my-salons`, {
+        credentials: "include", // Ensure cookies are sent
+      });
+      if (!response.ok) throw new Error("Unauthorized");
+      return response.json();
+    },
     retry: false,
     enabled: !!user,
   });
@@ -69,10 +78,10 @@ export default function SalonDashboard() {
 
   const handleLogout = async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
+      await fetch(`${apiUrl}/api/auth/logout`, { method: "POST", credentials: "include" });
       window.location.href = "/login";
     } catch (error) {
-      console.error('Logout failed:', error);
+      console.error("Logout failed:", error);
       window.location.href = "/login";
     }
   };
@@ -90,37 +99,57 @@ export default function SalonDashboard() {
 
   // If user has no salons, show setup screen
   if (!salons || salons.length === 0) {
-
     const createSalon = async (e: React.FormEvent) => {
       e.preventDefault();
       setIsCreating(true);
-      
+
+      // Validate and format website
+      const validSalonData = { ...salonData };
+      if (salonData.website) {
+        const urlPattern = /^(https?:\/\/)/;
+        if (!urlPattern.test(salonData.website.trim())) {
+          validSalonData.website = `http://${salonData.website.trim()}`; // Prepend http if no protocol
+        }
+      } else {
+        delete validSalonData.website; // Omit website if empty
+      }
+
       try {
-        const response = await fetch('/api/salons', {
-          method: 'POST',
+        const response = await fetch(`${apiUrl}/api/salons`, {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
+          credentials: "include",
           body: JSON.stringify({
-            ...salonData,
-            imageUrl: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400', // Default image
+            ...validSalonData,
+            imageUrl: "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400",
             rating: 0,
-            reviewCount: 0
+            reviewCount: 0,
           }),
         });
-        
+
         if (response.ok) {
           const data = await response.json();
-          console.log('Salon created:', data);
+          console.log("Salon created:", data);
           setCreatedSalon(data);
           setShowNextSteps(true);
           toast({
             title: "Success",
             description: "Salon created successfully!",
           });
+        } else if (response.status === 401) {
+          toast({
+            title: "Unauthorized",
+            description: "Please log in again.",
+            variant: "destructive",
+          });
+          setTimeout(() => {
+            window.location.href = "/login";
+          }, 500);
         } else {
           const errorText = await response.text();
-          console.error('Error response:', errorText);
+          console.error("Error response:", errorText);
           toast({
             title: "Error",
             description: `Failed to create salon: ${response.status}`,
@@ -128,7 +157,7 @@ export default function SalonDashboard() {
           });
         }
       } catch (error) {
-        console.error('Fetch error:', error);
+        console.error("Fetch error:", error);
         toast({
           title: "Error",
           description: "Failed to create salon",
@@ -148,7 +177,7 @@ export default function SalonDashboard() {
               <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome to SmartQ</h1>
               <p className="text-gray-600">Create your first salon to get started with queue management.</p>
             </div>
-            
+
             <form onSubmit={createSalon} className="space-y-4">
               <div>
                 <Label htmlFor="name">Salon Name *</Label>
@@ -157,22 +186,22 @@ export default function SalonDashboard() {
                   type="text"
                   placeholder="Enter salon name"
                   value={salonData.name}
-                  onChange={(e) => setSalonData({...salonData, name: e.target.value})}
+                  onChange={(e) => setSalonData({ ...salonData, name: e.target.value })}
                   required
                 />
               </div>
-              
+
               <div>
                 <Label htmlFor="description">Description</Label>
                 <Textarea
                   id="description"
                   placeholder="Describe your salon services"
                   value={salonData.description}
-                  onChange={(e) => setSalonData({...salonData, description: e.target.value})}
+                  onChange={(e) => setSalonData({ ...salonData, description: e.target.value })}
                   rows={3}
                 />
               </div>
-              
+
               <div>
                 <Label htmlFor="location">Location *</Label>
                 <Input
@@ -180,11 +209,11 @@ export default function SalonDashboard() {
                   type="text"
                   placeholder="Enter salon address"
                   value={salonData.location}
-                  onChange={(e) => setSalonData({...salonData, location: e.target.value})}
+                  onChange={(e) => setSalonData({ ...salonData, location: e.target.value })}
                   required
                 />
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="phone">Phone</Label>
@@ -193,10 +222,10 @@ export default function SalonDashboard() {
                     type="tel"
                     placeholder="Phone number"
                     value={salonData.phone}
-                    onChange={(e) => setSalonData({...salonData, phone: e.target.value})}
+                    onChange={(e) => setSalonData({ ...salonData, phone: e.target.value })}
                   />
                 </div>
-                
+
                 <div>
                   <Label htmlFor="email">Email</Label>
                   <Input
@@ -204,11 +233,11 @@ export default function SalonDashboard() {
                     type="email"
                     placeholder="Email address"
                     value={salonData.email}
-                    onChange={(e) => setSalonData({...salonData, email: e.target.value})}
+                    onChange={(e) => setSalonData({ ...salonData, email: e.target.value })}
                   />
                 </div>
               </div>
-              
+
               <div>
                 <Label htmlFor="website">Website</Label>
                 <Input
@@ -216,21 +245,21 @@ export default function SalonDashboard() {
                   type="url"
                   placeholder="Website URL (optional)"
                   value={salonData.website}
-                  onChange={(e) => setSalonData({...salonData, website: e.target.value})}
+                  onChange={(e) => setSalonData({ ...salonData, website: e.target.value })}
                 />
               </div>
-              
+
               <div className="flex gap-3 pt-4">
-                <Button 
+                <Button
                   type="submit"
                   className="flex-1 bg-blush-500 hover:bg-blush-600"
                   disabled={isCreating}
                 >
                   {isCreating ? "Creating..." : "Create Salon"}
                 </Button>
-                <Button 
+                <Button
                   type="button"
-                  variant="outline" 
+                  variant="outline"
                   onClick={handleLogout}
                   disabled={isCreating}
                 >
@@ -248,11 +277,11 @@ export default function SalonDashboard() {
   if (showNextSteps && createdSalon) {
     const handleContinueToDashboard = async () => {
       await queryClient.invalidateQueries({ queryKey: ["/api/my-salons"] });
-      setShowNextSteps(false);
+      // Navigate to the dashboard page
+      window.location.href = `/dashboard/${createdSalon.id}`; // Adjust route as needed
     };
 
     const handleAddServices = () => {
-      // Navigate to services management
       window.location.href = `/queue-management/${createdSalon.id}`;
     };
 
@@ -267,7 +296,7 @@ export default function SalonDashboard() {
               <h1 className="text-2xl font-bold text-gray-900 mb-2">Salon Created Successfully!</h1>
               <p className="text-gray-600 mb-4">Your salon "{createdSalon.name}" is now ready.</p>
             </div>
-            
+
             <div className="space-y-4">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <h3 className="font-semibold text-blue-900 mb-2">Next Steps:</h3>
@@ -278,16 +307,16 @@ export default function SalonDashboard() {
                   <li>• Start accepting customers</li>
                 </ul>
               </div>
-              
+
               <div className="flex gap-3">
-                <Button 
+                <Button
                   onClick={handleAddServices}
                   className="flex-1 bg-blush-500 hover:bg-blush-600"
                 >
                   <i className="fas fa-plus mr-2"></i>
                   Add Services
                 </Button>
-                <Button 
+                <Button
                   onClick={handleContinueToDashboard}
                   variant="outline"
                   className="flex-1"
@@ -295,8 +324,8 @@ export default function SalonDashboard() {
                   Go to Dashboard
                 </Button>
               </div>
-              
-              <Button 
+
+              <Button
                 onClick={handleLogout}
                 variant="ghost"
                 className="w-full"
@@ -331,7 +360,7 @@ export default function SalonDashboard() {
               <button className="text-gray-600 hover:text-blush-500 transition-colors">
                 <i className="fas fa-bell text-lg"></i>
               </button>
-              <button 
+              <button
                 className="text-gray-600 hover:text-blush-500 transition-colors"
                 onClick={handleLogout}
                 data-testid="button-logout"
@@ -403,7 +432,7 @@ export default function SalonDashboard() {
       {/* Quick Actions */}
       <section className="px-4 pb-6">
         <h3 className="text-lg font-bold text-gray-800 mb-4">Quick Actions</h3>
-        
+
         <div className="grid grid-cols-2 gap-4">
           <Link href={`/queue-management/${primarySalon.id}`}>
             <Button className="w-full h-auto bg-gradient-to-r from-blush-500 to-pink-500 text-white p-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02] flex flex-col items-center space-y-2" data-testid="button-manage-queue">
@@ -442,7 +471,7 @@ export default function SalonDashboard() {
       {/* Recent Activity */}
       <section className="px-4 pb-20">
         <h3 className="text-lg font-bold text-gray-800 mb-4">Recent Activity</h3>
-        
+
         <Card className="border-gray-100">
           <CardContent className="p-4">
             <div className="space-y-4">

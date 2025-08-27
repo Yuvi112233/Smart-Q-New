@@ -31,7 +31,7 @@ const app = express();
 app.use(cors({
   origin: function(origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
-    if(!origin) return callback(null, true);
+    if (!origin) return callback(null, true);
     
     const allowedOrigins = [
       'http://localhost:3000',
@@ -39,11 +39,11 @@ app.use(cors({
       process.env.FRONTEND_URL
     ].filter(Boolean);
     
-    if(allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
       callback(null, true);
     } else {
       console.log('CORS blocked origin:', origin);
-      callback(null, true); // Allow all origins in production for now
+      callback(null, true); // Allow all origins in production for now (consider tightening in prod)
     }
   },
   credentials: true
@@ -53,6 +53,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 
+// Custom middleware for request logging and response capture
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -83,29 +84,38 @@ app.use((req, res, next) => {
   next();
 });
 
+// Error handling middleware
+app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  const status = err.status || err.statusCode || 500;
+  const message = err.message || "Internal Server Error";
+  const errorDetails = process.env.NODE_ENV === "development" ? err.stack : undefined;
+
+  log(`Error: ${message} (Status: ${status})`, "error");
+  res.status(status).json({ message, error: errorDetails });
+});
+
+// Server startup
 (async () => {
-  // Connect to MongoDB before setting up routes
-  if (!process.env.MONGODB_URI) {
-    throw new Error("MONGODB_URI is not set in environment");
+  try {
+    // Connect to MongoDB before setting up routes
+    if (!process.env.MONGODB_URI) {
+      throw new Error("MONGODB_URI is not set in environment");
+    }
+    await connectToDatabase(process.env.MONGODB_URI);
+    log("Connected to MongoDB successfully");
+
+    const server = await registerRoutes(app);
+
+    // API server only - no frontend serving
+    const port = parseInt(process.env.PORT || '5002', 10); // Changed to 5002 to match your log
+    server.listen({
+      port,
+      host: "0.0.0.0",
+    }, () => {
+      log(`API server running on port ${port}`);
+    });
+  } catch (error) {
+    log(`Failed to start server: ${(error as Error).message}`, "error");
+    process.exit(1);
   }
-  await connectToDatabase(process.env.MONGODB_URI);
-
-  const server = await registerRoutes(app);
-
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    res.status(status).json({ message });
-    throw err;
-  });
-
-  // API server only - no frontend serving
-  const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-  }, () => {
-    log(`API server running on port ${port}`);
-  });
 })();

@@ -17,6 +17,7 @@ import Analytics from "@/pages/analytics";
 import EditProfile from "@/pages/edit-profile";
 import ManageOffers from "@/pages/manage-offers";
 
+
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
 
@@ -39,6 +40,7 @@ function Router() {
           <Route path="/analytics/:salonId" component={Analytics} />
           <Route path="/edit-profile/:salonId" component={EditProfile} />
           <Route path="/manage-offers/:salonId" component={ManageOffers} />
+         
         </>
       )}
       <Route component={NotFound} />

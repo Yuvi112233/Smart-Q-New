@@ -1,7 +1,12 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { isAuthenticated, setAuthCookie, clearAuthCookie, optionalAuth } from "./auth";
+import { 
+  isAuthenticated, 
+  setAuthCookie, 
+  clearAuthCookie, 
+  optionalAuth 
+} from "./auth";
 import { 
   insertSalonSchema, 
   insertServiceSchema, 
@@ -117,10 +122,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  const authGuard = optionalAuth;
-
   // Auth routes
-  app.get('/api/auth/user', authGuard, async (req: any, res) => {
+  app.get('/api/auth/user', optionalAuth, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub;
       if (!userId) return res.status(401).json({ message: "Not authenticated" });
@@ -128,15 +131,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!user) {
         return res.status(401).json({ message: "User not found" });
       }
-
       return res.json(user);
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
     }
   });
-
-
 
   // Salon routes
   app.get('/api/salons', async (req, res) => {
@@ -268,9 +268,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/queue/join', isAuthenticated, async (req: any, res) => {
+  app.post('/api/queue/join', async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      // Get user from cookie directly if not in req.user
+      let userId;
+      
+      if (req.user && req.user.claims && req.user.claims.sub) {
+        userId = req.user.claims.sub;
+      } else if (req.cookies && req.cookies.sq_auth) {
+        try {
+          // Try to decode the token directly from cookie
+          const decoded = verifyAuthToken(req.cookies.sq_auth);
+          userId = decoded.sub;
+          
+          // Set the user on the request
+          req.user = {
+            id: decoded.sub,
+            isAdmin: decoded.isAdmin || false,
+            claims: decoded
+          };
+          
+          // Refresh the token
+          setAuthCookie(res, decoded.sub, decoded.isAdmin || false);
+          console.log("Refreshed auth token from cookie for user:", userId);
+        } catch (err) {
+          console.error("Failed to verify token from cookie:", err);
+        }
+      }
+      
+      // If still no userId, return unauthorized
+      if (!userId) {
+        console.error("No valid user found for queue join");
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      console.log(`User ${userId} attempting to join queue`);
       
       // Get the first service for this salon if serviceId is default
       let serviceId = req.body.serviceId;
@@ -295,10 +327,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const queue = await storage.joinQueue(queueData);
-      res.status(201).json(queue);
+      // Return structured response matching QueueResponse interface
+      res.status(201).json({
+        id: queue.id,
+        position: queue.position,
+        status: queue.status,
+      });
     } catch (error) {
       console.error("Error joining queue:", error);
-      res.status(400).json({ message: "Failed to join queue" });
+      res.status(500).json({ message: "Failed to join queue", details: error.message });
     }
   });
 
