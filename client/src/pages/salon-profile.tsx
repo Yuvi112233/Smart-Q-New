@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useParams } from "wouter";
+import { useParams, useLocation } from "wouter"; // ✅ Added useNavigate
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
@@ -50,6 +50,7 @@ export default function SalonProfile() {
   const { toast } = useToast();
   const { user, isLoading: authLoading, refresh } = useAuth();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();// ✅ placed inside component
 
   const { data: salon, isLoading, refetch } = useQuery<SalonDetails>({
     queryKey: ["/api/salons", id],
@@ -72,13 +73,26 @@ export default function SalonProfile() {
     mutationFn: async () => {
       console.log("Joining queue - salonId:", id, "user:", user?.id);
       if (!id || !user?.id) throw new Error("Missing id or user");
+  
       try {
-        // Add timestamp to prevent caching issues
-        const response = await apiRequest("POST", `/api/queue/join?t=${Date.now()}`, {
-          salonId: id,
-          serviceId: null, // Server will handle default service
-          status: "waiting",
-        });
+        const response = await fetch(
+          `${(import.meta as any).env.VITE_API_URL}/api/queue/join`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              salonId: id,
+              serviceId: null, // Server will handle default service
+              status: "waiting",
+            }),
+            credentials: "include", // 👈 IMPORTANT
+          }
+        );
+  
+        if (!response.ok) {
+          throw new Error("Failed to join queue");
+        }
+  
         const data = await response.json();
         console.log("Join queue response:", data);
         return data as QueueResponse;
@@ -90,18 +104,18 @@ export default function SalonProfile() {
     onSuccess: (data: QueueResponse) => {
       console.log("Join queue success:", data);
       toast({ title: "Success!", description: "Joined queue. Redirecting..." });
-      // Save salon ID for redirect after login if needed
-      localStorage.setItem("redirectAfterLogin", `/salon/${id}`);
-      setTimeout(() => window.location.href = `/waiting-area/${data.id}`, 500);
+
+      // ✅ Use React Router navigation instead of full page reload
+      setLocation(`/waiting-area/${id}?queueId=${data.id}`);
+
+
       queryClient.invalidateQueries({ queryKey: ["/api/user/queue-status"] });
       queryClient.invalidateQueries({ queryKey: ["/api/salons", id] });
     },
     onError: async (error: any) => {
       console.error("Join queue error:", error);
       if (isUnauthorizedError(error)) {
-        toast({ title: "Please log in", description: "You need to be logged in to join the queue", variant: "destructive" });
-        // Save current salon for redirect after login
-        localStorage.setItem("redirectAfterLogin", `/salon/${id}`);
+        toast({ title: "Session Expired", description: "Refreshing session...", variant: "destructive" });
         if (refresh) {
           await refresh();
           joinQueueMutation.mutate(); // Retry after refresh

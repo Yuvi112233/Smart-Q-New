@@ -1,56 +1,75 @@
-import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
+// server/auth.ts
+import jwt from "jsonwebtoken";
+import { Response, Request, NextFunction } from "express";
 
-const JWT_COOKIE = 'sq_auth';
-const JWT_MAX_AGE_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
+const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey";
+export const JWT_COOKIE = "sq_auth";
+const JWT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-function signAuthToken(payload: Record<string, any>): string {
-  const secret = process.env.JWT_SECRET || 'dev-secret';
-  return jwt.sign(payload, secret, { expiresIn: '7d' });
+// Token payload type
+interface AuthClaims {
+  sub: string;      // userId
+  isAdmin: boolean; // admin flag
 }
 
-function readAuth(req: Request): { userId?: string; isAdmin?: boolean } | null {
-  const secret = process.env.JWT_SECRET || 'dev-secret';
-  const token = (req as any).cookies?.[JWT_COOKIE] || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : undefined);
-  if (!token) return null;
-  try {
-    const decoded = jwt.verify(token, secret) as any;
-    return { userId: decoded.sub, isAdmin: decoded.isAdmin };
-  } catch {
-    return null;
-  }
+export function signAuthToken(claims: AuthClaims) {
+  return jwt.sign(claims, JWT_SECRET, { expiresIn: "7d" });
 }
 
-// Simple authentication middleware for development
-export function isAuthenticated(req: Request, res: Response, next: NextFunction) {
-  const auth = readAuth(req);
-  if (auth?.userId) {
-    (req as any).user = { claims: { sub: auth.userId, isAdmin: auth.isAdmin } };
-    return next();
-  }
-  return res.status(401).json({ message: 'Unauthorized' });
-}
-
-// Optional authentication - doesn't fail if not authenticated
-export function optionalAuth(req: Request, res: Response, next: NextFunction) {
-  const auth = readAuth(req);
-  if (auth?.userId) {
-    (req as any).user = { claims: { sub: auth.userId, isAdmin: auth.isAdmin } };
-  }
-  next();
+export function verifyAuthToken(token: string): AuthClaims {
+  return jwt.verify(token, JWT_SECRET) as AuthClaims;
 }
 
 export function setAuthCookie(res: Response, userId: string, isAdmin: boolean) {
   const token = signAuthToken({ sub: userId, isAdmin });
+  const isProd = process.env.NODE_ENV === "production";
+
   res.cookie(JWT_COOKIE, token, {
     httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    sameSite: isProd ? "none" : "lax", // allow cross-site only in prod
+    secure: isProd,                    // only enforce HTTPS in prod
     maxAge: JWT_MAX_AGE_MS,
-    path: '/',
+    path: "/",
   });
 }
 
 export function clearAuthCookie(res: Response) {
-  res.clearCookie(JWT_COOKIE, { path: '/' });
+  const isProd = process.env.NODE_ENV === "production";
+
+  res.clearCookie(JWT_COOKIE, {
+    httpOnly: true,
+    sameSite: isProd ? "none" : "lax",
+    secure: isProd,
+    path: "/",
+  });
+}
+
+// Middleware: require authentication
+export function isAuthenticated(req: Request, res: Response, next: NextFunction) {
+  const token = req.cookies[JWT_COOKIE];
+  if (!token) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  try {
+    const claims = verifyAuthToken(token);
+    (req as any).user = { claims };
+    next();
+  } catch (err) {
+    return res.status(401).json({ message: "Invalid or expired token" });
+  }
+}
+
+// Middleware: optional auth (for routes that can accept anonymous)
+export function optionalAuth(req: Request, _res: Response, next: NextFunction) {
+  const token = req.cookies[JWT_COOKIE];
+  if (token) {
+    try {
+      const claims = verifyAuthToken(token);
+      (req as any).user = { claims };
+    } catch {
+      // ignore invalid token
+    }
+  }
+  next();
 }

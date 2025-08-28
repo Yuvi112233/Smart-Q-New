@@ -28,52 +28,19 @@ interface SalonDetails {
 
 export default function WaitingArea() {
   const { salonId } = useParams<{ salonId: string }>();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const { toast } = useToast();
   const { user, isLoading: authLoading } = useAuth();
 
-  // Debug: log user on mount/changes
+  // Extract queueId from query params
+  const query = new URLSearchParams(location.split("?")[1]);
+  const queueId = query.get("queueId");
+
   useEffect(() => {
-    console.log("WaitingArea user:", user, "authLoading:", authLoading);
-  }, [user, authLoading]);
+    console.log("WaitingArea user:", user, "authLoading:", authLoading, "queueId:", queueId);
+  }, [user, authLoading, queueId]);
 
-  // Fetch queue status
-  const { data: queueStatus, isLoading: queueLoading } = useQuery<QueueStatus>({
-    queryKey: [`/api/user/queue-status?salonId=${salonId}`],
-    retry: false,
-    enabled: !!user && !!salonId,
-    refetchInterval: 30000, // Refresh every 30 seconds
-  });
-
-  // Fetch salon details
-  const { data: salon, isLoading: salonLoading } = useQuery<SalonDetails>({
-    queryKey: ["/api/salons", salonId],
-    retry: false,
-    enabled: !!salonId,
-  });
-
-  // Calculate estimated wait time (position × average service time)
-  const estimatedWaitTime = () => {
-    if (!queueStatus || !salon?.services) return "Unknown";
-    
-    // Find the service for this queue entry
-    const service = salon.services.find(s => s.id === queueStatus.serviceId);
-    
-    // If service not found, use a default duration of 15 minutes
-    const avgDuration = service?.duration || 15;
-    
-    // Calculate wait time in minutes
-    const waitMinutes = (queueStatus.position - 1) * avgDuration;
-    
-    if (waitMinutes <= 0) return "You're next!";
-    if (waitMinutes < 60) return `${waitMinutes} minutes`;
-    
-    const hours = Math.floor(waitMinutes / 60);
-    const minutes = waitMinutes % 60;
-    return `${hours} hour${hours > 1 ? 's' : ''} ${minutes > 0 ? `${minutes} minutes` : ''}`;
-  };
-
-  // Redirect to login only after auth finished and user is missing
+  // Redirect to login if not authenticated
   useEffect(() => {
     if (!authLoading && !user) {
       toast({
@@ -85,7 +52,51 @@ export default function WaitingArea() {
     }
   }, [user, authLoading, toast, setLocation]);
 
-  // Loading state
+  // Fetch queue status
+  const { data: queueStatus, isLoading: queueLoading } = useQuery<QueueStatus>({
+    queryKey: ["queue-status", queueId],
+    enabled: !!queueId,
+    retry: false,
+    queryFn: () => apiRequest(`/api/user/queue-status/${queueId}`),
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
+
+  // Fetch salon details
+  const { data: salon, isLoading: salonLoading } = useQuery<SalonDetails>({
+    queryKey: ["/api/salons", salonId],
+    enabled: !!salonId,
+    retry: false,
+    queryFn: () => apiRequest(`/api/salons/${salonId}`),
+  });
+
+  // Redirect if user is not in queue
+  useEffect(() => {
+    if (!queueLoading && !queueStatus && queueId) {
+      toast({
+        title: "Not in queue",
+        description: "You are not currently in the queue for this salon.",
+        variant: "destructive",
+      });
+      setTimeout(() => setLocation(`/salon/${salonId}`), 1000);
+    }
+  }, [queueLoading, queueStatus, queueId, salonId, toast, setLocation]);
+
+  // Calculate estimated wait time
+  const estimatedWaitTime = () => {
+    if (!queueStatus || !salon?.services) return "Unknown";
+
+    const service = salon.services.find(s => s.id === queueStatus.serviceId);
+    const avgDuration = service?.duration || 15;
+    const waitMinutes = (queueStatus.position - 1) * avgDuration;
+
+    if (waitMinutes <= 0) return "You're next!";
+    if (waitMinutes < 60) return `${waitMinutes} minutes`;
+
+    const hours = Math.floor(waitMinutes / 60);
+    const minutes = waitMinutes % 60;
+    return `${hours} hour${hours > 1 ? "s" : ""} ${minutes > 0 ? `${minutes} minutes` : ""}`;
+  };
+
   if (authLoading || queueLoading || salonLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-rose-50 via-white to-blush-50 flex items-center justify-center">
@@ -97,38 +108,19 @@ export default function WaitingArea() {
     );
   }
 
-  // If not in queue, redirect to salon page
-  if (!queueStatus) {
-    toast({
-      title: "Not in queue",
-      description: "You are not currently in the queue for this salon.",
-      variant: "destructive",
-    });
-    setTimeout(() => {
-      setLocation(`/salon/${salonId}`);
-    }, 1000);
-    return null;
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-rose-50 via-white to-blush-50 p-6">
       <div className="max-w-3xl mx-auto">
         <Card className="shadow-lg border-blush-100">
           <CardHeader className="bg-gradient-to-r from-blush-500 to-rose-500 text-white">
-            <CardTitle className="text-2xl font-bold text-center">
-              You're in the Queue!
-            </CardTitle>
+            <CardTitle className="text-2xl font-bold text-center">You're in the Queue!</CardTitle>
           </CardHeader>
           <CardContent className="p-6">
             <div className="text-center mb-8">
-              <h2 className="text-xl font-semibold mb-2">
-                You are in the queue at {salon?.name}
-              </h2>
+              <h2 className="text-xl font-semibold mb-2">You are in the queue at {salon?.name}</h2>
               <div className="flex flex-col items-center justify-center space-y-4 mt-6">
                 <div className="bg-blush-100 rounded-full w-24 h-24 flex items-center justify-center">
-                  <span className="text-3xl font-bold text-blush-700">
-                    #{queueStatus.position}
-                  </span>
+                  <span className="text-3xl font-bold text-blush-700">#{queueStatus?.position}</span>
                 </div>
                 <p className="text-gray-600">Your position in line</p>
               </div>
@@ -147,17 +139,12 @@ export default function WaitingArea() {
             </div>
 
             <div className="flex justify-center mt-6">
-              <Button
-                variant="outline"
-                onClick={() => setLocation(`/salon/${salonId}`)}
-                className="mr-4"
-              >
+              <Button variant="outline" onClick={() => setLocation(`/salon/${salonId}`)} className="mr-4">
                 Back to Salon
               </Button>
               <Button
                 variant="destructive"
                 onClick={() => {
-                  // TODO: Implement leave queue functionality
                   toast({
                     title: "Coming Soon",
                     description: "Leave queue functionality will be available soon.",

@@ -270,39 +270,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/queue/join', async (req: any, res) => {
     try {
-      // Get user from cookie directly if not in req.user
-      let userId;
-      
-      if (req.user && req.user.claims && req.user.claims.sub) {
-        userId = req.user.claims.sub;
-      } else if (req.cookies && req.cookies.sq_auth) {
-        try {
-          // Try to decode the token directly from cookie
-          const decoded = verifyAuthToken(req.cookies.sq_auth);
-          userId = decoded.sub;
-          
-          // Set the user on the request
-          req.user = {
-            id: decoded.sub,
-            isAdmin: decoded.isAdmin || false,
-            claims: decoded
-          };
-          
-          // Refresh the token
-          setAuthCookie(res, decoded.sub, decoded.isAdmin || false);
-          console.log("Refreshed auth token from cookie for user:", userId);
-        } catch (err) {
-          console.error("Failed to verify token from cookie:", err);
-        }
-      }
-      
-      // If still no userId, return unauthorized
-      if (!userId) {
-        console.error("No valid user found for queue join");
-        return res.status(401).json({ message: "Unauthorized" });
-      }
+      const userId = req.user?.claims?.sub || null;
 
-      console.log(`User ${userId} attempting to join queue`);
       
       // Get the first service for this salon if serviceId is default
       let serviceId = req.body.serviceId;

@@ -17,77 +17,92 @@ interface RegisterCredentials {
 
 export function useAuth() {
   const queryClient = useQueryClient();
+
   const parseJson = async (res: Response) => {
     const text = await res.text();
     return text ? JSON.parse(text) : null;
   };
-  
+
+  // ✅ Fetch current logged-in user on app load
   const { data: user, isLoading } = useQuery({
     queryKey: ["/api/auth/user"],
+    queryFn: async () => {
+      const res = await fetch(
+        `${(import.meta as any).env.VITE_API_URL}/api/auth/user`,
+        { credentials: "include" }
+      );
+      if (!res.ok) return null;
+      return parseJson(res);
+    },
     retry: false,
-    enabled: false, // Don't auto-fetch user data on app load
   });
 
+  // ✅ Login
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginCredentials) => {
-      // For development, simulate a successful login
-      // In production, this would make an API call
-      const response = await fetch(`${(import.meta as any).env.VITE_API_URL}/api/auth/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(credentials),
-        credentials: "include",
-      });
+      const response = await fetch(
+        `${(import.meta as any).env.VITE_API_URL}/api/auth/login`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(credentials),
+          credentials: "include",
+        }
+      );
 
-      if (!response.ok) {
-        throw new Error("Login failed");
-      }
+      if (!response.ok) throw new Error("Login failed");
 
       return parseJson(response);
-    },
-    onSuccess: (data) => {
-      // Set user data after successful login
-      queryClient.setQueryData(["/api/auth/user"], data);
-    },
-  });
-
-  const registerMutation = useMutation({
-    mutationFn: async (credentials: RegisterCredentials) => {
-      const response = await fetch(`${(import.meta as any).env.VITE_API_URL}/api/auth/register`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(credentials),
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        throw new Error("Registration failed");
-      }
-
-      return parseJson(response);
-    },
-  });
-
-  const logoutMutation = useMutation({
-    mutationFn: async () => {
-      // For development, simulate logout
-      // In production, this would make an API call
-      await fetch(`${(import.meta as any).env.VITE_API_URL}/api/auth/logout`, { method: "POST", credentials: "include" });
     },
     onSuccess: () => {
-      // Clear user data after logout
+      // ✅ Refetch user after login so session persists
+      queryClient.invalidateQueries(["/api/auth/user"]);
+    },
+  });
+
+  // ✅ Register
+  const registerMutation = useMutation({
+    mutationFn: async (credentials: RegisterCredentials) => {
+      const response = await fetch(
+        `${(import.meta as any).env.VITE_API_URL}/api/auth/register`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(credentials),
+          credentials: "include",
+        }
+      );
+
+      if (!response.ok) throw new Error("Registration failed");
+
+      return parseJson(response);
+    },
+    onSuccess: () => {
+      // ✅ Refetch user after register
+      queryClient.invalidateQueries(["/api/auth/user"]);
+    },
+  });
+
+  // ✅ Logout
+  const logoutMutation = useMutation({
+    mutationFn: async () => {
+      await fetch(
+        `${(import.meta as any).env.VITE_API_URL}/api/auth/logout`,
+        {
+          method: "POST",
+          credentials: "include",
+        }
+      );
+    },
+    onSuccess: () => {
       queryClient.setQueryData(["/api/auth/user"], null);
     },
   });
 
   return {
     user,
-    isLoading: false, // Always show as not loading
-    isAuthenticated: !!user, // Check if user exists
+    isLoading,
+    isAuthenticated: !!user,
     login: loginMutation.mutateAsync,
     register: registerMutation.mutateAsync,
     logout: logoutMutation.mutateAsync,
