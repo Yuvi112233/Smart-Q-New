@@ -295,6 +295,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "You are already in the queue for this salon" });
       }
       
+      // Remove the check that prevents joining if someone else is in queue
       const queue = await storage.joinQueue(queueData);
       // Return structured response matching QueueResponse interface
       res.status(201).json({

@@ -58,7 +58,7 @@ export default function WaitingArea() {
     enabled: !!queueId,
     retry: false,
     queryFn: () => apiRequest(`/api/user/queue-status/${queueId}`),
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 5000, // Refresh every 5 seconds for more responsive updates
   });
 
   // Fetch salon details

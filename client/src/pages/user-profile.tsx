@@ -18,7 +18,7 @@ interface Visit {
 
 export default function UserProfile() {
   const { toast } = useToast();
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading, logout } = useAuth();
 
   const { data: visits, isLoading } = useQuery<Visit[]>({
     queryKey: ["/api/user/visits"],
@@ -40,8 +40,24 @@ export default function UserProfile() {
     }
   }, [user, authLoading, toast]);
 
-  const handleLogout = () => {
-    window.location.href = "/api/logout";
+  const handleLogout = async () => {
+    try {
+      // Use the logoutMutation directly from useAuth hook
+      await logout();
+      toast({
+        title: "Logged out",
+        description: "You have been successfully logged out.",
+      });
+      // Redirect to home page
+      window.location.href = "/";
+    } catch (error) {
+      console.error("Logout failed:", error);
+      toast({
+        title: "Error",
+        description: "Failed to logout. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const formatPrice = (cents: number) => {
@@ -85,11 +101,12 @@ export default function UserProfile() {
             </button>
             <h1 className="font-serif text-lg font-semibold text-gray-800">My Profile</h1>
             <button 
-              className="text-gray-600 hover:text-blush-500 transition-colors"
+              className="flex items-center px-3 py-2 bg-blush-500 text-white rounded-md hover:bg-blush-600 transition-colors"
               onClick={handleLogout}
               data-testid="button-logout"
             >
-              <i className="fas fa-sign-out-alt text-lg"></i>
+              <i className="fas fa-sign-out-alt text-lg mr-2"></i>
+              Logout
             </button>
           </div>
         </div>

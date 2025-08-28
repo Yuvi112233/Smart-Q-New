@@ -160,6 +160,7 @@ export class MongoStorage implements IStorage {
     const currentQueue = await this.getQueueBySalon(queueData.salonId || "");
     const waitingCount = currentQueue.filter(q => q.status === "waiting").length;
     
+    // Allow multiple users to join the same queue
     const queue: Queue = {
       id: randomUUID(),
       salonId: queueData.salonId || null,
